@@ -50,7 +50,7 @@ namespace MyJWT.Services
             var sessionId = Guid.NewGuid().ToString();
             var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_jwtSettings.Secret));
             var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
-            var expiration = DateTime.UtcNow.AddMinutes(expireInMinutes);
+            var expiration = DateTime.UtcNow.AddSeconds(expireInMinutes);
             var encryptedUserId = _encryption.Encrypt(userId.ToString());
             var claims = new[]
             {

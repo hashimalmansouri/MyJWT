@@ -19,6 +19,8 @@ namespace MyJWT.Services
         Task UpdateUserLoginAsync(UserLogin userLogin);
         Task DeleteUserLoginsAsync(int userId);
         Task<UserLogin> GetUserLoginsAsync(int userId, string sessionId);
+        void CleanupExpiredTokens();
+
     }
     public class UserService : IUserService
     {
@@ -27,6 +29,11 @@ namespace MyJWT.Services
         public UserService(IUserRepository userRepository)
         {
             _userRepository = userRepository;
+        }
+
+        public void CleanupExpiredTokens()
+        {
+            _userRepository.CleanupExpiredTokens();
         }
 
         public async Task DeleteUserLoginsAsync(int userId)
@@ -71,7 +78,7 @@ namespace MyJWT.Services
 
         public async Task SaveRefreshTokenAsync(int userId, string refreshToken, int expireInMinutes)
         {
-            var expiration = DateTime.UtcNow.AddMinutes(expireInMinutes);
+            var expiration = DateTime.UtcNow.AddSeconds(expireInMinutes);
             await _userRepository.SaveRefreshTokenAsync(userId, refreshToken, expiration);
         }
 
@@ -87,7 +94,7 @@ namespace MyJWT.Services
 
         public void UpdateTokenExpiration(int userId, int expireInMinutes)
         {
-            var expiration = DateTime.UtcNow.AddMinutes(expireInMinutes);
+            var expiration = DateTime.UtcNow.AddSeconds(expireInMinutes);
             _userRepository.UpdateTokenExpiration(userId, expiration);
         }
 

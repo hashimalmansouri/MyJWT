@@ -1,3 +1,4 @@
+using Hangfire;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Mvc.Infrastructure;
 using Microsoft.Data.SqlClient;
@@ -22,6 +23,15 @@ builder.Services.Configure<JwtSettings>(builder.Configuration.GetSection("JwtSet
 
 // Register UserRepository with a connection string from configuration
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+
+// Configure Hangfire
+builder.Services.AddHangfire(configuration => configuration
+    .SetDataCompatibilityLevel(CompatibilityLevel.Version_170)
+    .UseSimpleAssemblyNameTypeSerializer()
+    .UseDefaultTypeSerializer()
+    .UseSqlServerStorage(connectionString));
+
+builder.Services.AddHangfireServer();
 
 builder.Services.AddTransient<IDbConnection>
     ((sp) => new SqlConnection(connectionString));
@@ -111,6 +121,11 @@ app.UseAuthorization();
 app.UseMiddleware<RedirectUnauthorizedMiddleware>();
 app.UseJwtTokenMiddleware();
 
+app.MapHangfireDashboard();
+app.UseHangfireDashboard();
+
+// Schedule the cleanup job
+RecurringJob.AddOrUpdate<IUserService>("CleanupExpiredTokens", service => service.CleanupExpiredTokens(), Cron.Hourly);
 
 app.MapControllerRoute(
     name: "default",

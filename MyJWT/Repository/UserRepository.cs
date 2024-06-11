@@ -22,6 +22,8 @@ namespace MyJWT.Repository
         Task DeleteUserLoginsAsync(int userId);
         Task<UserLogin> GetUserLoginByRefreshTokenAsync(string refreshToken);
         Task<UserLogin> GetUserLoginBySessionIdAsync(string sessionId);
+        void CleanupExpiredTokens();
+
     }
     public class UserRepository : IUserRepository
     {
@@ -119,6 +121,13 @@ namespace MyJWT.Repository
         {
             var sql = "SELECT * FROM UserLogins WHERE UserId = @UserId AND SessionId = @SessionId";
             return await _dbConnection.QueryFirstOrDefaultAsync<UserLogin>(sql, new { UserId = userId, SessionId = sessionId });
+        }
+
+        public void CleanupExpiredTokens()
+        {
+            var now = DateTime.UtcNow;
+            var sql = "DELETE FROM UserLogins WHERE RefreshTokenExpiryTime < @Now";
+            _dbConnection.Execute(sql, new { Now = now });
         }
     }
 }
