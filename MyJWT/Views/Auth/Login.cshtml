@@ -1,0 +1,22 @@
+﻿
+@{
+    ViewData["Title"] = "Login";
+}
+
+<h2>Login</h2>
+
+<p>Email: test@gmail.com</p>
+<p>Password: Pa0503373640Pa$</p>
+
+<form method="post" asp-antiforgery="true">
+    <input type="hidden" name="returnUrl" value="@ViewBag.ReturnUrl" />
+    <div class="form-group">
+        <label for="email">Email</label>
+        <input type="email" value="test@gmail.com" class="form-control" id="email" name="email">
+    </div>
+    <div class="form-group">
+        <label for="password">Password</label>
+        <input type="password" value="Pa0503373640Pa$" class="form-control" id="password" name="password">
+    </div>
+    <button type="submit" class="btn btn-primary">Login</button>
+</form>
