@@ -8,6 +8,7 @@ namespace MyJWT.Helpers
         void SetVisitor();
         Visitor Visitor { get; set; }
         int UserId { get; set; }
+        int UserLoginId { get; set; }
         User User { get; set; }
     }
     public class VisitorHelper : IVisitorHelper
@@ -23,6 +24,7 @@ namespace MyJWT.Helpers
             User = new User();
         }
         public Visitor Visitor { get; set; }
+        public int UserLoginId { get; set; }
         public int UserId { get; set; }
         public User User { get; set; }
 

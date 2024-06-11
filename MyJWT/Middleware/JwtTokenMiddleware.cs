@@ -1,9 +1,7 @@
-﻿using Microsoft.AspNetCore.Authentication;
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc.Controllers;
 using Microsoft.IdentityModel.Tokens;
 using MyJWT.Helpers;
-using MyJWT.Repository;
 using MyJWT.Security;
 using MyJWT.Services;
 using System.IdentityModel.Tokens.Jwt;
@@ -22,6 +20,11 @@ namespace MyJWT.Middleware
 
         public async Task InvokeAsync(HttpContext context, IAuthService authService, IUserService userService)
         {
+            if (IsTokenInHeader(context))
+            {
+                context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+                return;
+            }
             string? token = GetToken(context);
             if (token is not null)
             {
@@ -33,39 +36,36 @@ namespace MyJWT.Middleware
                     jwtToken = jwtTokenHandler.ReadJwtToken(token);
                     var exp = jwtToken.ValidTo;
                     var now = DateTime.UtcNow;
-
                     var _encryption = context.RequestServices.GetRequiredService<IEncryption>();
                     int userId = GetUserId(context, jwtToken);
                     var _userService = context.RequestServices.GetRequiredService<IUserService>();
-
+                    var sessionId = jwtToken?.Claims.First(claim => claim.Type == "SessionId")?.Value;
+                    SetVisitor(context, userId, sessionId, _userService);
+                    if (IsEndpointAllowAnonymousOrNoAuthorization(context))
+                    {
+                        await _next(context);
+                        return;
+                    }
                     if (exp < now)
                     {
-                        SetVisitor(context, userId, _userService);
                         throw new SecurityTokenExpiredException();
                     }
-
-                    var sessionId = jwtToken?.Claims.First(claim => claim.Type == "SessionId")?.Value;
                     if (userId == 0 || sessionId == null || !authService.ValidateToken(userId, sessionId))
                     {
                         ClearCookiesAndSignOut(context);
-                        //return;
-                    }
-                    else
-                    {
-                        SetVisitor(context, userId, _userService);
                     }
                 }
                 catch (Exception)
                 {
                     var refreshToken = context.Request.Cookies["refreshToken"];
-                    if (refreshToken != null)
+                    if (refreshToken is not null)
                     {
-                        var user = await userService.GetUserByRefreshTokenAsync(refreshToken);
+                        var userLogin = await userService.GetUserLoginByRefreshTokenAsync(refreshToken);
                         var now = DateTime.UtcNow;
-                        if (user != null && user.RefreshTokenExpiryTime > now)
+                        if (userLogin is not null && userLogin.RefreshTokenExpiryTime > now)
                         {
                             var newTokenResult = await authService.RefreshTokenAsync(token, refreshToken);
-                            if (newTokenResult.Token != null)
+                            if (newTokenResult.Token is not null && newTokenResult.RefreshToken is not null)
                             {
                                 context.Response.Cookies.Append("jwtToken", newTokenResult.Token, new CookieOptions { HttpOnly = true, Secure = true });
                                 context.Response.Cookies.Append("refreshToken", newTokenResult.RefreshToken, new CookieOptions { HttpOnly = true, Secure = true });
@@ -74,19 +74,16 @@ namespace MyJWT.Middleware
                             else // Invalid refresh token
                             {
                                 ClearCookiesAndSignOut(context);
-                                //return;
                             }
                         }
                         else // Invalid refresh token
                         {
                             ClearCookiesAndSignOut(context);
-                            //return;
                         }
                     }
                     else // Refresh token not found
                     {
                         ClearCookiesAndSignOut(context);
-                        //return;
                     }
                 }
             }
@@ -110,18 +107,26 @@ namespace MyJWT.Middleware
 
         private string? GetToken(HttpContext context)
         {
-            string? token = context.Request.Headers["Authorization"].FirstOrDefault()?.Split(" ").Last();
-            if (token is null)
-            {
-                token = context.Request.Cookies["jwtToken"];
-            }
+            //string? token = context.Request.Headers["Authorization"].FirstOrDefault()?.Split(" ").Last();
+            //if (token is null)
+            //{
+            //    token = context.Request.Cookies["jwtToken"];
+            //}
+            string? token = context.Request.Cookies["jwtToken"];
             return token;
         }
 
-        private void SetVisitor(HttpContext context, int userId, IUserService userService)
+        private bool IsTokenInHeader(HttpContext context)
+        {
+            return !string.IsNullOrEmpty(context.Request.Headers["Authorization"].FirstOrDefault()?.Split(" ").Last());
+        }
+
+        private void SetVisitor(HttpContext context, int userId, string sessionId, IUserService userService)
         {
             var user = userService.GetUserByIdAsync(userId).Result;
+            var userLogin = userService.GetUserLoginBySessionIdAsync(sessionId).Result;
             var visitor = context.RequestServices.GetRequiredService<IVisitorHelper>();
+            visitor.UserLoginId = userLogin.Id;
             visitor.UserId = user.Id;
             visitor.User = user;
             visitor.SetVisitor();

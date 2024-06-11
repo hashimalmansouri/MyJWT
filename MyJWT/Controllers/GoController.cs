@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 
 namespace MyJWT.Controllers
 {
@@ -8,5 +9,8 @@ namespace MyJWT.Controllers
         {
             return View();
         }
+
+        [Authorize]
+        public IActionResult Fly() => View();
     }
 }

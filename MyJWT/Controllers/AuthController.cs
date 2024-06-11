@@ -11,15 +11,18 @@ namespace MyJWT.Controllers
     public class AuthController : Controller
     {
         private readonly IAuthService _authService;
+        private readonly IUserService _userService;
         private readonly IVisitorHelper _visitorHelper;
         private readonly JwtSettings _jwtSettings;
         public AuthController(IAuthService authService,
             IVisitorHelper visitorHelper,
-            IOptions<JwtSettings> jwtSettings)
+            IOptions<JwtSettings> jwtSettings,
+            IUserService userService)
         {
             _authService = authService;
             _visitorHelper = visitorHelper;
             _jwtSettings = jwtSettings.Value;
+            _userService = userService;
         }
 
         [HttpGet]
@@ -49,16 +52,33 @@ namespace MyJWT.Controllers
                 return RedirectToAction(nameof(NotAuthorized));
                 //return Unauthorized();
             }
-            var authResponse = _authService.GenerateToken(user.Id, _jwtSettings.TokenExpiryInMinutes);
+            var authResponse = await _authService.GenerateToken(user.Id, _jwtSettings.TokenExpiryInSeconds);
             if (string.IsNullOrEmpty(authResponse.Token) || 
                 string.IsNullOrEmpty(authResponse.RefreshToken))
             {
                 return RedirectToAction(nameof(NotAuthorized));
                 //return Unauthorized();
             }
-            await _authService.SaveRefreshTokenAsync(user.Id, authResponse.RefreshToken, _jwtSettings.RefreshTokenExpiryInMinutes);
+
+            var userLogin = new UserLogin
+            {
+                UserId = user.Id,
+                SessionId = authResponse.Sessiond,
+                RefreshToken = authResponse.RefreshToken,
+                RefreshTokenExpiryTime = DateTime.UtcNow.AddSeconds(_jwtSettings.RefreshTokenExpiryInSeconds),
+                TokenExpiryTime = DateTime.UtcNow.AddSeconds(_jwtSettings.TokenExpiryInSeconds)
+            };
+
+
+            if (!_jwtSettings.AllowMultipleDevicesToLogin)
+            {
+                await _userService.DeleteUserLoginsAsync(user.Id);
+            }
+            await _userService.SaveUserLoginAsync(userLogin);
+
             HttpContext.Response.Cookies.Append("jwtToken", authResponse.Token, new CookieOptions { HttpOnly = true, Secure = true });
             HttpContext.Response.Cookies.Append("refreshToken", authResponse.RefreshToken, new CookieOptions { HttpOnly = true, Secure = true });
+            
             if (!string.IsNullOrEmpty(returnUrl) && Url.IsLocalUrl(returnUrl))
             {
                 return Redirect(returnUrl);
@@ -83,7 +103,7 @@ namespace MyJWT.Controllers
             {
                 HttpContext.Response.Cookies.Delete("jwtToken");
                 HttpContext.Response.Cookies.Delete("refreshToken");
-                _authService.InvalidateSession(_visitorHelper.UserId);
+                _authService.InvalidateSession(_visitorHelper.UserId, _visitorHelper.UserLoginId);
                 return RedirectToAction(nameof(Login));
             }
             catch (Exception)

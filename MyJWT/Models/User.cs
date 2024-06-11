@@ -9,9 +9,9 @@
         public string SaltPassword { get; set; } = null!;
         public bool IsActive { get; set; }
         public int RoleId { get; set; }
-        public string? RefreshToken { get; set; }
-        public DateTime? RefreshTokenExpiryTime { get; set; }
-        public string? SessionId { get; set; }
-        public DateTime? TokenExpiryTime { get; set; }
+        //public string? RefreshToken { get; set; }
+        //public DateTime? RefreshTokenExpiryTime { get; set; }
+        //public string? SessionId { get; set; }
+        //public DateTime? TokenExpiryTime { get; set; }
     }
 }

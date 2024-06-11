@@ -16,11 +16,11 @@ namespace MyJWT.Services
     {
         UserLoginResponse Login(string email, string password);
         string Hash512(string password, string salt);
-        public AuthResponse GenerateToken(int userId, int expireInMinutes);
-        public ClaimsPrincipal GetPrincipalFromExpiredToken(string token);
-        public Task<(string Token, string RefreshToken)> RefreshTokenAsync(string token, string refreshToken);
+        Task<AuthResponse> GenerateToken(int userId, int expireInMinutes);
+        ClaimsPrincipal GetPrincipalFromExpiredToken(string token);
+        Task<(string Token, string RefreshToken)> RefreshTokenAsync(string token, string refreshToken);
 
-        void InvalidateSession(int userId);
+        void InvalidateSession(int userId, int userLoginId);
         Task SaveRefreshTokenAsync(int userId, string refreshToken, int expireInMinutes);
         bool ValidateToken(int userId, string sessionId);
     }
@@ -35,6 +35,7 @@ namespace MyJWT.Services
             IEncryption encryption,
             IVisitorHelper visitorHelper,
             IUserService userService,
+            IUserRepository userRepository,
             IOptions<JwtSettings> jwtSettings)
         {
             _encryption = encryption;
@@ -43,7 +44,7 @@ namespace MyJWT.Services
             _jwtSettings = jwtSettings.Value;
         }
 
-        public AuthResponse GenerateToken(int userId, int expireInMinutes)
+        public async Task<AuthResponse> GenerateToken(int userId, int expireInMinutes)
         {
             var response = new AuthResponse();
             var sessionId = Guid.NewGuid().ToString();
@@ -53,12 +54,10 @@ namespace MyJWT.Services
             var encryptedUserId = _encryption.Encrypt(userId.ToString());
             var claims = new[]
             {
-                new Claim(ClaimTypes.NameIdentifier, encryptedUserId),
-                //new Claim(JwtRegisteredClaimNames.Sub, userId),
-                new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
-                new Claim("SessionId", sessionId),
-                //new Claim (ClaimTypes.Role, "1"),
-            };
+            new Claim(ClaimTypes.NameIdentifier, encryptedUserId),
+            new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
+            new Claim("SessionId", sessionId),
+        };
 
             var token = new JwtSecurityToken(
                 issuer: _jwtSettings.Issuer,
@@ -68,15 +67,14 @@ namespace MyJWT.Services
                 signingCredentials: creds
             );
 
-            _userService.UpdateSession(userId, sessionId);
-            _userService.UpdateTokenExpiration(userId, _jwtSettings.TokenExpiryInMinutes);
-
             var refreshToken = Guid.NewGuid().ToString();
+            
 
             response = new AuthResponse()
             {
                 Token = new JwtSecurityTokenHandler().WriteToken(token),
-                RefreshToken = refreshToken
+                RefreshToken = refreshToken,
+                Sessiond = sessionId 
             };
             return response;
         }
@@ -110,7 +108,7 @@ namespace MyJWT.Services
             try
             {
                 var user = _userService.GetUserByEmail(email);
-                if (user is null)
+                if (user == null)
                 {
                     response.Code = "USER_NOT_FOUND";
                     return response;
@@ -129,17 +127,18 @@ namespace MyJWT.Services
                 response.Id = user.Id;
                 response.RoleId = user.RoleId;
             }
-            catch (Exception)
+            catch (Exception ex)
             {
+                // Log the exception
                 response.Code = "USER_EXCEPTION";
-            }   
+            }
             return response;
         }
 
         public string Hash512(string password, string salt)
         {
             byte[] convertedToBytes = Encoding.UTF8.GetBytes(password + salt);
-            HashAlgorithm hashType = new SHA512Managed();
+            using var hashType = new SHA512Managed();
             byte[] hashBytes = hashType.ComputeHash(convertedToBytes);
             string hashedResult = Convert.ToBase64String(hashBytes);
             return hashedResult;
@@ -147,33 +146,38 @@ namespace MyJWT.Services
 
         public async Task<(string Token, string RefreshToken)> RefreshTokenAsync(string token, string refreshToken)
         {
-            var user = await _userService.GetUserByIdAsync(_visitorHelper.UserId);
-            var now = DateTime.UtcNow;
-            if (user != null && user.RefreshTokenExpiryTime > now)
+            var userLogin = await _userService.GetUserLoginByRefreshTokenAsync(refreshToken);
+            if (userLogin != null && userLogin.RefreshTokenExpiryTime > DateTime.UtcNow)
             {
                 var principal = GetPrincipalFromExpiredToken(token);
-                //var userId = principal.Claims.FirstOrDefault(c => c.Type == JwtRegisteredClaimNames.Sub)?.Value;
                 var encryptedUserId = principal?.Claims.First(claim => claim.Type == ClaimTypes.NameIdentifier)?.Value;
                 int userId = int.Parse(_encryption.Decrypt(encryptedUserId));
-                var authResponse = GenerateToken(userId, _jwtSettings.TokenExpiryInMinutes);
-                await _userService.SaveRefreshTokenAsync(userId, authResponse.RefreshToken, _jwtSettings.RefreshTokenExpiryInMinutes); // Save the new refresh token
+                var authResponse = await GenerateToken(userId, _jwtSettings.TokenExpiryInSeconds);
+                userLogin.SessionId = authResponse.Sessiond;
+                userLogin.TokenExpiryTime = DateTime.UtcNow.AddSeconds(_jwtSettings.TokenExpiryInSeconds);
+                userLogin.RefreshToken = authResponse.RefreshToken;
+                userLogin.RefreshTokenExpiryTime = DateTime.UtcNow.AddSeconds(_jwtSettings.RefreshTokenExpiryInSeconds);
+                await _userService.UpdateUserLoginAsync(userLogin); // Update the refresh token
                 return (authResponse.Token, authResponse.RefreshToken);
             }
             return (null, null);
         }
 
-        public void InvalidateSession(int userId)
+        public void InvalidateSession(int userId, int userLoginId)
         {
-            _userService.InvalidateSession(userId);
+            // Assuming you have a method in IUserService to invalidate user sessions
+            _userService.InvalidateSession(userId, userLoginId);
         }
 
         public async Task SaveRefreshTokenAsync(int userId, string refreshToken, int expireInMinutes)
         {
+            // Assuming you have a method in IUserService to save refresh tokens
             await _userService.SaveRefreshTokenAsync(userId, refreshToken, expireInMinutes);
         }
 
         public bool ValidateToken(int userId, string sessionId)
         {
+            // Assuming you have a method in IUserService to validate tokens
             return _userService.ValidateToken(userId, sessionId);
         }
     }

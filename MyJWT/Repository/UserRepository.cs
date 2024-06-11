@@ -10,11 +10,18 @@ namespace MyJWT.Repository
         User GetUserByEmail(string email);
         void UpdateSession(int userId, string sessionId);
         void UpdateTokenExpiration(int userId, DateTime tokenExpiryTime);
-        void InvalidateSession(int userId);
+        void InvalidateSession(int userId, int userLoginId);
         Task SaveRefreshTokenAsync(int userId, string refreshToken, DateTime expiryTime);
         Task<User> GetUserByRefreshTokenAsync(string refreshToken);
         Task<User> GetUserByIdAsync(int userId);
         bool ValidateToken(int userId, string sessionId);
+
+        Task<UserLogin> GetUserLoginsAsync(int userId, string sessionId);
+        Task SaveUserLoginAsync(UserLogin userLogin);
+        Task UpdateUserLoginAsync(UserLogin userLogin);
+        Task DeleteUserLoginsAsync(int userId);
+        Task<UserLogin> GetUserLoginByRefreshTokenAsync(string refreshToken);
+        Task<UserLogin> GetUserLoginBySessionIdAsync(string sessionId);
     }
     public class UserRepository : IUserRepository
     {
@@ -57,38 +64,61 @@ namespace MyJWT.Repository
 
         public bool ValidateToken(int userId, string sessionId)
         {
-            var sql = "SELECT TOP 1 * FROM Users WHERE Id = @Id AND SessionId = @SessionId";
-            var user = _dbConnection.QueryFirstOrDefault<User>(sql, new { Id = userId, SessionId = sessionId });
-            var now = DateTime.UtcNow;
-            if (user is null || user.SessionId != sessionId || user.TokenExpiryTime < now)
-            {
-                return false;
-            }
-            return true;
+            var sql = "SELECT COUNT(*) FROM UserLogins WHERE UserId = @UserId AND SessionId = @SessionId";
+            var count = _dbConnection.ExecuteScalar<int>(sql, new { UserId = userId, SessionId = sessionId });
+            return count > 0;
         }
 
-        public void InvalidateSession(int userId)
+
+        public void InvalidateSession(int userId, int userLoginId)
         {
-            string? refreshToken = null;
-            string? sessionId = null;
-            var expirationTime = DateTime.UtcNow.AddYears(-30);
-            var sql = @"UPDATE Users SET RefreshToken = @RefreshToken, SessionId = @SessionId, 
-                            RefreshTokenExpiryTime = @RefreshTokenExpiryTime, TokenExpiryTime = @TokenExpiryTime
-                            WHERE Id = @Id";
-            _dbConnection.Execute(sql, new
-            {
-                RefreshToken = refreshToken,
-                SessionId = sessionId,
-                Id = userId,
-                RefreshTokenExpiryTime = expirationTime,
-                TokenExpiryTime = expirationTime
-            });
+            var sql = @"DELETE FROM UserLogins WHERE UserId = @UserId AND Id = @Id";
+            _dbConnection.Execute(sql, new { UserId = userId, Id = userLoginId });
         }
 
         public User? GetUserByEmail(string email)
         {
             var sql = "SELECT TOP 1 * FROM Users WHERE Email = @Email";
             return _dbConnection.QueryFirstOrDefault<User>(sql, new { Email = email });
+        }
+
+        public async Task SaveUserLoginAsync(UserLogin userLogin)
+        {
+            var sql = @"INSERT INTO UserLogins (UserId, SessionId, RefreshToken, RefreshTokenExpiryTime, TokenExpiryTime) 
+                    VALUES (@UserId, @SessionId, @RefreshToken, @RefreshTokenExpiryTime, @TokenExpiryTime)";
+            await _dbConnection.ExecuteAsync(sql, userLogin);
+        }
+        public async Task UpdateUserLoginAsync(UserLogin userLogin)
+        {
+            var sql = @"UPDATE UserLogins SET SessionId = @SessionId, RefreshToken = @RefreshToken,
+                        RefreshTokenExpiryTime = @RefreshTokenExpiryTime, TokenExpiryTime = @TokenExpiryTime
+                        WHERE Id = @Id";
+            await _dbConnection.ExecuteAsync(sql, userLogin);
+        }
+
+        public async Task DeleteUserLoginsAsync(int userId)
+        {
+            var sql = @"DELETE FROM UserLogins WHERE UserId = @UserId";
+            await _dbConnection.ExecuteAsync(sql, new { UserId = userId });
+        }
+
+
+        public async Task<UserLogin> GetUserLoginByRefreshTokenAsync(string refreshToken)
+        {
+            var sql = "SELECT * FROM UserLogins WHERE RefreshToken = @RefreshToken";
+            return await _dbConnection.QueryFirstOrDefaultAsync<UserLogin>(sql, new { RefreshToken = refreshToken });
+        }
+
+        public async Task<UserLogin> GetUserLoginBySessionIdAsync(string sessionId)
+        {
+            var sql = "SELECT * FROM UserLogins WHERE SessionId = @SessionId";
+            return await _dbConnection.QueryFirstOrDefaultAsync<UserLogin>(sql, new { SessionId = sessionId });
+        }
+
+        public async Task<UserLogin> GetUserLoginsAsync(int userId, string sessionId)
+        {
+            var sql = "SELECT * FROM UserLogins WHERE UserId = @UserId AND SessionId = @SessionId";
+            return await _dbConnection.QueryFirstOrDefaultAsync<UserLogin>(sql, new { UserId = userId, SessionId = sessionId });
         }
     }
 }
