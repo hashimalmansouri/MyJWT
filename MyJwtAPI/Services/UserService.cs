@@ -7,7 +7,7 @@ namespace MyJwtAPI.Services
     {
         Task<User> GetUserByIdAsync(int userId);
         User GetUserByEmail(string email);
-        Task SaveRefreshTokenAsync(int userId, string refreshToken, int expireInMinutes);
+        Task SaveRefreshTokenAsync(int userId, string refreshToken, int expireInSeconds);
         void InvalidateSession(int userId, int userLoginId);
         bool ValidateToken(int userId, string sessionId);
         Task<UserLogin> GetUserLoginByRefreshTokenAsync(string refreshToken);
@@ -62,9 +62,9 @@ namespace MyJwtAPI.Services
             _userRepository.InvalidateSession(userId, userLoginId);
         }
 
-        public async Task SaveRefreshTokenAsync(int userId, string refreshToken, int expireInMinutes)
+        public async Task SaveRefreshTokenAsync(int userId, string refreshToken, int expireInSeconds)
         {
-            var expiration = DateTime.UtcNow.AddSeconds(expireInMinutes);
+            var expiration = DateTime.UtcNow.AddSeconds(expireInSeconds);
             await _userRepository.SaveRefreshTokenAsync(userId, refreshToken, expiration);
         }
 

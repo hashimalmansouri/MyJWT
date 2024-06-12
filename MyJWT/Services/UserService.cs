@@ -8,9 +8,9 @@ namespace MyJWT.Services
         Task<User> GetUserByRefreshTokenAsync(string refreshToken);
         Task<User> GetUserByIdAsync(int userId);
         void UpdateSession(int userId, string sessionId);
-        void UpdateTokenExpiration(int userId, int expireInMinutes);
+        void UpdateTokenExpiration(int userId, int expireInSeconds);
         User GetUserByEmail(string email);
-        Task SaveRefreshTokenAsync(int userId, string refreshToken, int expireInMinutes);
+        Task SaveRefreshTokenAsync(int userId, string refreshToken, int expireInSeconds);
         void InvalidateSession(int userId, int userLoginId);
         bool ValidateToken(int userId, string sessionId);
         Task<UserLogin> GetUserLoginByRefreshTokenAsync(string refreshToken);
@@ -76,9 +76,9 @@ namespace MyJWT.Services
             _userRepository.InvalidateSession(userId, userLoginId);
         }
 
-        public async Task SaveRefreshTokenAsync(int userId, string refreshToken, int expireInMinutes)
+        public async Task SaveRefreshTokenAsync(int userId, string refreshToken, int expireInSeconds)
         {
-            var expiration = DateTime.UtcNow.AddSeconds(expireInMinutes);
+            var expiration = DateTime.UtcNow.AddSeconds(expireInSeconds);
             await _userRepository.SaveRefreshTokenAsync(userId, refreshToken, expiration);
         }
 
@@ -92,9 +92,9 @@ namespace MyJWT.Services
             _userRepository.UpdateSession(userId, sessionId);
         }
 
-        public void UpdateTokenExpiration(int userId, int expireInMinutes)
+        public void UpdateTokenExpiration(int userId, int expireInSeconds)
         {
-            var expiration = DateTime.UtcNow.AddSeconds(expireInMinutes);
+            var expiration = DateTime.UtcNow.AddSeconds(expireInSeconds);
             _userRepository.UpdateTokenExpiration(userId, expiration);
         }
 

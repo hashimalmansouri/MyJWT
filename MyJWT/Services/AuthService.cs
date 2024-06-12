@@ -16,12 +16,12 @@ namespace MyJWT.Services
     {
         UserLoginResponse Login(string email, string password);
         string Hash512(string password, string salt);
-        Task<AuthResponse> GenerateToken(int userId, int expireInMinutes);
+        Task<AuthResponse> GenerateToken(int userId, int expireInSeconds);
         ClaimsPrincipal GetPrincipalFromExpiredToken(string token);
         Task<(string Token, string RefreshToken)> RefreshTokenAsync(string token, string refreshToken);
 
         void InvalidateSession(int userId, int userLoginId);
-        Task SaveRefreshTokenAsync(int userId, string refreshToken, int expireInMinutes);
+        Task SaveRefreshTokenAsync(int userId, string refreshToken, int expireInSeconds);
         bool ValidateToken(int userId, string sessionId);
     }
     public class AuthService : IAuthService
@@ -44,13 +44,13 @@ namespace MyJWT.Services
             _jwtSettings = jwtSettings.Value;
         }
 
-        public async Task<AuthResponse> GenerateToken(int userId, int expireInMinutes)
+        public async Task<AuthResponse> GenerateToken(int userId, int expireInSeconds)
         {
             var response = new AuthResponse();
             var sessionId = Guid.NewGuid().ToString();
             var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_jwtSettings.Secret));
             var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
-            var expiration = DateTime.UtcNow.AddSeconds(expireInMinutes);
+            var expiration = DateTime.UtcNow.AddSeconds(expireInSeconds);
             var encryptedUserId = _encryption.Encrypt(userId.ToString());
             var claims = new[]
             {
@@ -169,10 +169,10 @@ namespace MyJWT.Services
             _userService.InvalidateSession(userId, userLoginId);
         }
 
-        public async Task SaveRefreshTokenAsync(int userId, string refreshToken, int expireInMinutes)
+        public async Task SaveRefreshTokenAsync(int userId, string refreshToken, int expireInSeconds)
         {
             // Assuming you have a method in IUserService to save refresh tokens
-            await _userService.SaveRefreshTokenAsync(userId, refreshToken, expireInMinutes);
+            await _userService.SaveRefreshTokenAsync(userId, refreshToken, expireInSeconds);
         }
 
         public bool ValidateToken(int userId, string sessionId)
