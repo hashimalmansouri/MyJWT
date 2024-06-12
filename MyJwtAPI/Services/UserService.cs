@@ -5,10 +5,7 @@ namespace MyJwtAPI.Services
 {
     public interface IUserService
     {
-        Task<User> GetUserByRefreshTokenAsync(string refreshToken);
         Task<User> GetUserByIdAsync(int userId);
-        void UpdateSession(int userId, string sessionId);
-        void UpdateTokenExpiration(int userId, int expireInMinutes);
         User GetUserByEmail(string email);
         Task SaveRefreshTokenAsync(int userId, string refreshToken, int expireInMinutes);
         void InvalidateSession(int userId, int userLoginId);
@@ -19,7 +16,6 @@ namespace MyJwtAPI.Services
         Task UpdateUserLoginAsync(UserLogin userLogin);
         Task DeleteUserLoginsAsync(int userId);
         Task<UserLogin> GetUserLoginsAsync(int userId, string sessionId);
-        void CleanupExpiredTokens();
 
     }
     public class UserService : IUserService
@@ -29,11 +25,6 @@ namespace MyJwtAPI.Services
         public UserService(IUserRepository userRepository)
         {
             _userRepository = userRepository;
-        }
-
-        public void CleanupExpiredTokens()
-        {
-            _userRepository.CleanupExpiredTokens();
         }
 
         public async Task DeleteUserLoginsAsync(int userId)
@@ -49,11 +40,6 @@ namespace MyJwtAPI.Services
         public async Task<User> GetUserByIdAsync(int userId)
         {
             return await _userRepository.GetUserByIdAsync(userId);
-        }
-
-        public async Task<User> GetUserByRefreshTokenAsync(string refreshToken)
-        {
-            return await _userRepository.GetUserByRefreshTokenAsync(refreshToken);
         }
 
         public async Task<UserLogin> GetUserLoginByRefreshTokenAsync(string refreshToken)
@@ -85,17 +71,6 @@ namespace MyJwtAPI.Services
         public async Task SaveUserLoginAsync(UserLogin userLogin)
         {
             await _userRepository.SaveUserLoginAsync(userLogin);
-        }
-
-        public void UpdateSession(int userId, string sessionId)
-        {
-            _userRepository.UpdateSession(userId, sessionId);
-        }
-
-        public void UpdateTokenExpiration(int userId, int expireInMinutes)
-        {
-            var expiration = DateTime.UtcNow.AddSeconds(expireInMinutes);
-            _userRepository.UpdateTokenExpiration(userId, expiration);
         }
 
         public async Task UpdateUserLoginAsync(UserLogin userLogin)

@@ -21,7 +21,6 @@ namespace MyJwtAPI.Services
         Task<(string Token, string RefreshToken)> RefreshTokenAsync(string token, string refreshToken);
 
         void InvalidateSession(int userId, int userLoginId);
-        Task SaveRefreshTokenAsync(int userId, string refreshToken, int expireInMinutes);
         bool ValidateToken(int userId, string sessionId);
     }
     public class AuthService : IAuthService
@@ -167,12 +166,6 @@ namespace MyJwtAPI.Services
         {
             // Assuming you have a method in IUserService to invalidate user sessions
             _userService.InvalidateSession(userId, userLoginId);
-        }
-
-        public async Task SaveRefreshTokenAsync(int userId, string refreshToken, int expireInMinutes)
-        {
-            // Assuming you have a method in IUserService to save refresh tokens
-            await _userService.SaveRefreshTokenAsync(userId, refreshToken, expireInMinutes);
         }
 
         public bool ValidateToken(int userId, string sessionId)

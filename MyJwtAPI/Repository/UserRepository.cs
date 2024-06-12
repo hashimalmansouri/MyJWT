@@ -8,21 +8,17 @@ namespace MyJwtAPI.Repository
     public interface IUserRepository
     {
         User GetUserByEmail(string email);
-        void UpdateSession(int userId, string sessionId);
-        void UpdateTokenExpiration(int userId, DateTime tokenExpiryTime);
         void InvalidateSession(int userId, int userLoginId);
         Task SaveRefreshTokenAsync(int userId, string refreshToken, DateTime expiryTime);
         Task<User> GetUserByRefreshTokenAsync(string refreshToken);
         Task<User> GetUserByIdAsync(int userId);
         bool ValidateToken(int userId, string sessionId);
-
         Task<UserLogin> GetUserLoginsAsync(int userId, string sessionId);
         Task SaveUserLoginAsync(UserLogin userLogin);
         Task UpdateUserLoginAsync(UserLogin userLogin);
         Task DeleteUserLoginsAsync(int userId);
         Task<UserLogin> GetUserLoginByRefreshTokenAsync(string refreshToken);
         Task<UserLogin> GetUserLoginBySessionIdAsync(string sessionId);
-        void CleanupExpiredTokens();
 
     }
     public class UserRepository : IUserRepository
@@ -50,18 +46,6 @@ namespace MyJwtAPI.Repository
         {
             var sql = "SELECT * FROM Users WHERE Id = @Id";
             return await _dbConnection.QueryFirstOrDefaultAsync<User>(sql, new { Id = userId });
-        }
-
-        public void UpdateSession(int userId, string sessionId)
-        {
-            var sql = "UPDATE Users SET SessionId = @SessionId WHERE Id = @Id";
-            _dbConnection.Execute(sql, new { SessionId = sessionId, Id = userId });
-        }
-
-        public void UpdateTokenExpiration(int userId, DateTime tokenExpiryTime)
-        {
-            var sql = "UPDATE Users SET TokenExpiryTime = @TokenExpiryTime WHERE Id = @Id";
-            _dbConnection.Execute(sql, new { TokenExpiryTime = tokenExpiryTime, Id = userId });
         }
 
         public bool ValidateToken(int userId, string sessionId)
@@ -121,13 +105,6 @@ namespace MyJwtAPI.Repository
         {
             var sql = "SELECT * FROM UserLogins WHERE UserId = @UserId AND SessionId = @SessionId";
             return await _dbConnection.QueryFirstOrDefaultAsync<UserLogin>(sql, new { UserId = userId, SessionId = sessionId });
-        }
-
-        public void CleanupExpiredTokens()
-        {
-            var now = DateTime.UtcNow;
-            var sql = "DELETE FROM UserLogins WHERE RefreshTokenExpiryTime < @Now";
-            _dbConnection.Execute(sql, new { Now = now });
         }
     }
 }
